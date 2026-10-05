@@ -1,0 +1,39 @@
+# Custom joint-space adaptation of Alpha; the 20-D interface is NOT EEF20.
+type: piper_joint20
+dataset_dir: /mnt/workspace/jiaotiancai/data-pen/lerobot/local/piper_bimanual_h50
+normalization_stats_path: assets/piper_joint20_h50/normalization_stats.npy
+
+# Hold out complete episodes. Statistics are fitted on all remaining episodes.
+val_episode_ids: [28, 29, 30]
+split: train
+
+# Source: [L q1..q6, L grip, R q1..q6, R grip], in recorded units.
+# Interface: [L q1..q6, 0,0,0, L grip, R q1..q6, 0,0,0, R grip].
+action_mode: joint20
+action_representation: piper_joint20_v1
+unify_action: true
+unify_action_map: ["0-9", "34-43"]
+unify_state_map: null
+action_dim_mask: [true, true, true, true, true, true, false, false, false, true,
+                  true, true, true, true, true, true, false, false, false, true]
+proprio_dim_mask: [true, true, true, true, true, true, false, false, false, true,
+                   true, true, true, true, true, true, false, false, false, true]
+normalize_mode: min-max
+
+# One observation + 32 future/action steps at the recorded 30 Hz.
+# Actions stay row-aligned at full rate; only video is subsampled.
+num_frames: 33
+video_stride: 4
+window_stride: 1
+height: 384
+width: 320
+multiview: true
+camera_layout: [cam_high, cam_left_wrist, cam_right_wrist]
+target_camera: cam_high
+
+color_jitter:
+  enabled: true
+  brightness: 0.2
+  contrast: 0.2
+  saturation: 0.2
+  hue: 0.0

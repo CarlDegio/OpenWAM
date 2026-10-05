@@ -1327,7 +1327,9 @@ class BaseWAMArchitecture(ABC, nn.Module):
         """
         if active_action_mask is None:
             normalizer = getattr(self, "normalizer", None)
-            active_action_indices = getattr(normalizer, "_dst_index", None)
+            active_action_indices = getattr(normalizer, "active_action_indices", None)
+            if active_action_indices is None:
+                active_action_indices = getattr(normalizer, "_dst_index", None)
             unified_action_dim = getattr(normalizer, "_unify_dim", None)
             if (
                 active_action_indices is not None

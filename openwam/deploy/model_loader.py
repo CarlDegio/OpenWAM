@@ -439,6 +439,10 @@ class _UnifyAwareNormalizer:
     gather/scatter is applied (no (un)normalize) — still required, since the model
     is in unified space regardless of whether normalization was on.
 
+    Optional raw ``action_dim_mask`` / ``proprio_dim_mask`` preserve structural
+    zero padding in both directions. ``active_action_indices`` excludes that
+    padding for inference while ``_dst_index`` keeps the complete raw gather map.
+
     Duck-typed to the ``Normalizer`` surface ``base.py`` uses (``.unnormalize`` /
     ``.normalize``), so ``base.py`` needs no change.
     """
@@ -449,6 +453,8 @@ class _UnifyAwareNormalizer:
         action_dst_index: np.ndarray,
         unify_dim: int,
         state_dst_index: Optional[np.ndarray] = None,
+        action_dim_mask: Optional[np.ndarray] = None,
+        proprio_dim_mask: Optional[np.ndarray] = None,
     ):
         from openwam.dataloader.utils.unify_action import map_to_unify, unmap_from_unify
 
@@ -461,9 +467,35 @@ class _UnifyAwareNormalizer:
         # Backward-compatible introspection name: this has always meant the
         # action gather map.
         self._dst_index = self._action_dst_index
+        self._action_dim_mask = self._validate_dim_mask(action_dim_mask, len(self._action_dst_index), "action_dim_mask")
+        self._proprio_dim_mask = self._validate_dim_mask(proprio_dim_mask, len(self._state_dst_index), "proprio_dim_mask")
+        # The full gather map preserves the raw interface width, including
+        # structural padding. Inference must denoise only supervised channels.
+        self.active_action_indices = (
+            self._action_dst_index if self._action_dim_mask is None else self._action_dst_index[self._action_dim_mask]
+        )
         self._unify_dim = int(unify_dim)
         self._map_to_unify = map_to_unify
         self._unmap_from_unify = unmap_from_unify
+
+    @staticmethod
+    def _validate_dim_mask(mask, width, name):
+        if mask is None:
+            return None
+        arr = np.asarray(mask)
+        if arr.shape != (width,) or arr.dtype != np.bool_:
+            raise ValueError(f"{name} must be a bool vector of raw width {width}, got shape={arr.shape} dtype={arr.dtype}")
+        return arr
+
+    @staticmethod
+    def _zero_padding(values, mask):
+        if mask is None:
+            return values
+        arr = np.asarray(values).copy()
+        if arr.ndim == 0 or arr.shape[-1] != len(mask):
+            raise ValueError(f"Padded raw vector must have width {len(mask)}, got {arr.shape}")
+        arr[..., ~mask] = 0
+        return arr
 
     # action OUT: model emits (..., unify_dim) normalized-unified → physical raw.
     def unnormalize(self, x):
@@ -475,15 +507,18 @@ class _UnifyAwareNormalizer:
                 arr.shape[-1],
                 self._unify_dim,
             )
-            return arr.copy() if self._inner is None else self._inner.unnormalize(arr)
+            result = arr.copy() if self._inner is None else self._inner.unnormalize(arr)
+            return self._zero_padding(result, self._action_dim_mask)
         raw = self._unmap_from_unify(arr, self._action_dst_index)
-        return raw if self._inner is None else self._inner.unnormalize(raw)
+        result = raw if self._inner is None else self._inner.unnormalize(raw)
+        return self._zero_padding(result, self._action_dim_mask)
 
     # proprio IN: physical raw → normalized-unified (..., unify_dim) the model wants.
     def normalize(self, x):
-        arr = np.asarray(x)
+        arr = self._zero_padding(np.asarray(x), self._proprio_dim_mask)
         if self._inner is not None:
             arr = self._inner.normalize(arr)
+        arr = self._zero_padding(arr, self._proprio_dim_mask)
         unified, _mask = self._map_to_unify(arr, self._state_dst_index, self._unify_dim)
         return unified
 
@@ -558,4 +593,6 @@ def _build_normalizer(cfg: DictConfig, ckpt_dir: str):
         action_dst_index,
         unify_dim,
         state_dst_index=state_dst_index,
+        action_dim_mask=OmegaConf.select(cfg, "dataloader.action_dim_mask", default=None),
+        proprio_dim_mask=OmegaConf.select(cfg, "dataloader.proprio_dim_mask", default=None),
     )

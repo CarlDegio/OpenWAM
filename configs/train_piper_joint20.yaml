@@ -1,0 +1,42 @@
+defaults:
+  - train
+  - override dataloader: piper_joint20
+  - _self_
+
+# Keep the original Foundation architecture and tensor widths for weight loading.
+model:
+  architecture:
+    action_dim: 80
+    state_dim: 80
+    variant: joint_self_attn
+    attention_mask_mode: mutual
+
+training:
+  finetune_ckpt_path: /mnt/workspace/base_model/OpenWAM-Alpha-Pretrain-Foundation-Model
+  resume_ckpt_path: null
+  learning_rate: 5e-5
+  action_lr: 5e-5
+  video_lr: 1e-5
+  num_epochs: 5
+  max_steps: null
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  mixed_precision: bf16
+  zero_stage: 2
+  use_gradient_checkpointing: true
+  use_gradient_checkpointing_offload: false
+  initialize_model_on_cpu: false
+  offload_optimizer_device: none
+  dataset_num_workers: 2
+  output_path: outputs/piper_joint20
+  save_steps: 1000
+  save_full_states_for_resume: true
+  keep_last_k_ckpts: 2
+
+project:
+  name: piper_joint20
+  output_dir: outputs/piper_joint20_hydra/${now:%Y-%m-%d_%H-%M-%S}
+  seed: 42
+  wandb:
+    project: openwam-piper-joint20
+    run_name: foundation-pen-joint20

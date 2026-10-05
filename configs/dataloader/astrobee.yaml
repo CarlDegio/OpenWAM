@@ -1,0 +1,47 @@
+# Astrobee data contract / configuration draft.
+# PENDING: register type "astrobee" and implement from_config in OpenWAM.
+# Reference reader: <dataset_dir>/metadata/astrobee_dataset_reader.py.
+# It currently returns 640x240 images; the 8px top/bottom padding below must
+# be implemented by the future adapter. These settings alone do not add it.
+type: astrobee
+dataset_dir: assets/benchmark_data/astrobee_ppo1000_rgb2_100
+schema: astrobee-rgb2-v1
+split: train
+split_file: ${dataloader.dataset_dir}/splits.json
+normalization_stats_path: ${dataloader.dataset_dir}/normalization_stats.json
+
+# Native spacecraft control space, NOT EEF20 / joint20 / unified 80-D.
+action_dim: 9
+state_dim: 27
+unify_action: false
+unify_action_map: null
+unify_state_map: null
+# Actions are already clipped to [-1, 1]; do not apply another normalizer.
+normalize_mode: null
+normalize_proprio: true  # train-only z-score, independently of action
+
+# 10 Hz control: 33 observations span 32 actions / 3.2 seconds.
+# from_config must map num_frames -> reader horizon = num_frames - 1.
+num_frames: 33
+video_stride: 4          # 9 video frames at offsets 0, 4, ..., 32
+window_stride: 8
+
+# Future adapter: concatenate horizontally, then pad (do not center-crop).
+# Order is semantically fixed: bus_top on the left, gripper_top on the right.
+multiview: true
+camera_layout: [bus_top, gripper_top]
+view_layout: horizontal
+source_camera_height: 240
+source_camera_width: 320
+height: 256              # Wan2.2 requires H,W divisible by 32
+width: 640
+image_padding:          # Astrobee-specific adapter contract, not yet wired up
+  top: 8
+  bottom: 8
+  left: 0
+  right: 0
+  value: 0
+
+# Read prompt from each episode's HDF5 attributes. Never feed teacher/obs,
+# target-object state, metrics or debug/ctrl to the student as input/labels.
+# The reference adapter reads only RGB + observation/proprio + action.

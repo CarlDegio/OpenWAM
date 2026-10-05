@@ -1,0 +1,41 @@
+# Configuration draft only. No dataset registration / model-loading code is
+# changed by this file. See the dataset README's pending integration section.
+defaults:
+  - train
+  - override dataloader: astrobee
+  - _self_
+
+# Inherit the base training architecture/backbones; override native dimensions.
+# Loading an 80-D Foundation action/state head requires an explicit adaptation
+# policy in the future model integration. Do not use the PPO checkpoint here:
+# model_1000.pt generated demonstrations, it is not an OpenWAM checkpoint.
+model:
+  architecture:
+    action_dim: 9
+    state_dim: 27
+    use_proprioception: true
+
+training:
+  # Initial hyperparameter proposal, not a validated training recipe.
+  learning_rate: 5e-5
+  action_lr: 5e-5
+  video_lr: 1e-5
+  num_epochs: 5
+  max_steps: null
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  dataset_num_workers: 2
+  finetune_ckpt_path: null
+  resume_ckpt_path: null
+  output_path: outputs/astrobee_ppo1000_rgb2
+  save_steps: 1000
+  save_full_states_for_resume: true
+  keep_last_k_ckpts: 2
+
+project:
+  name: astrobee_ppo1000_rgb2
+  output_dir: outputs/astrobee_hydra/${now:%Y-%m-%d_%H-%M-%S}
+  seed: 42
+  wandb:
+    project: openwam-astrobee
+    run_name: ppo1000-rgb2-proprio27-action9
